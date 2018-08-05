@@ -1,12 +1,12 @@
-hash: d84dd778ad0a194b824c1321d9b75c414370ef9e6cacf72b1914952af2f01a00
-updated: 2018-03-15T02:23:17.493413-04:00
+hash: 20ad3f3a11459773c650f8531ca7f5ef98348e202df2da3d8300fe49032732ed
+updated: 2018-08-05T13:05:26.595877-04:00
 imports:
 - name: github.com/alecthomas/units
   version: 2efee857e7cfd4f3d0138cc3cbb1b4966962b93a
 - name: github.com/asaskevich/govalidator
   version: ca5f9e638c83bac66bfac70ded5bded1503135a7
 - name: github.com/aws/aws-sdk-go
-  version: b69f447375c7fa0047ebcdd8ae5d585d5aac2f71
+  version: f0bbc646e13bfc451409e960cf33239aabb8671a
   subpackages:
   - aws
   - aws/awserr
@@ -18,14 +18,19 @@ imports:
   - aws/credentials/ec2rolecreds
   - aws/credentials/endpointcreds
   - aws/credentials/stscreds
+  - aws/csm
   - aws/defaults
   - aws/ec2metadata
   - aws/endpoints
   - aws/request
   - aws/session
   - aws/signer/v4
+  - internal/sdkio
+  - internal/sdkrand
   - internal/shareddefaults
   - private/protocol
+  - private/protocol/eventstream
+  - private/protocol/eventstream/eventstreamapi
   - private/protocol/query
   - private/protocol/query/queryutil
   - private/protocol/rest
@@ -42,7 +47,7 @@ imports:
 - name: github.com/cenkalti/backoff
   version: 32cd0c5b3aef12c76ed64aaf678f6c79736be7dc
 - name: github.com/coreos/etcd
-  version: 694728c496e22dfa5719c78ff23cc982e15bcb2f
+  version: e348b1aedd9167360c466ae98f7343d3e22281f8
   subpackages:
   - auth/authpb
   - clientv3
@@ -53,6 +58,7 @@ imports:
   - etcdserver/api/v3rpc/rpctypes
   - etcdserver/etcdserverpb
   - mvcc/mvccpb
+  - pkg/types
 - name: github.com/davecgh/go-spew
   version: 782f4967f2dc4564575ca782fe2d04090b5faca8
   subpackages:
@@ -62,7 +68,7 @@ imports:
 - name: github.com/dre1080/recover
   version: 1c296bbb3227134aca59bf2e3dc4c0893eee62fa
 - name: github.com/emicklei/go-restful
-  version: 777bb3f19bcafe2575ffb2a3e46af92509ae9594
+  version: 3eb9738c1697594ea6e71a7156a9bb32ed216cf0
   subpackages:
   - log
   - swagger
@@ -77,7 +83,7 @@ imports:
 - name: github.com/go-ini/ini
   version: c787282c39ac1fc618827141a1f762240def08a3
 - name: github.com/go-kit/kit
-  version: a9ca6725cbbea455e61c6bc8a1ed28e81eb3493b
+  version: ca4112baa34cb55091301bdc13b1420a122b1b9e
   subpackages:
   - log
   - metrics
@@ -90,9 +96,9 @@ imports:
 - name: github.com/go-logfmt/logfmt
   version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
 - name: github.com/go-openapi/analysis
-  version: 8ed83f2ea9f00f945516462951a288eaa68bf0d6
+  version: 3c8fe72ed5d307113ef76c7c3035964d7e4d4b73
 - name: github.com/go-openapi/errors
-  version: 03cfca65330da08a5a440053faf994a3c682b5bf
+  version: b2b2befaf267d082d779bcef52d682a47c779517
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
@@ -100,29 +106,32 @@ imports:
 - name: github.com/go-openapi/loads
   version: a80dea3052f00e5f032e860dd7355cd0cc67e24d
 - name: github.com/go-openapi/runtime
-  version: bf2ff8f7150788b1c7256abb0805ba0410cbbabb
+  version: 9a3091f566c0811ef4d54b535179bc0fc484a11f
   subpackages:
   - client
   - flagext
+  - logger
   - middleware
   - middleware/denco
   - middleware/header
   - middleware/untyped
   - security
 - name: github.com/go-openapi/spec
-  version: 48c2a7185575f9103a5a3863eff950bb776899d2
+  version: bce47c9386f9ecd6b86f450478a80103c3fe1402
 - name: github.com/go-openapi/strfmt
-  version: 610b6cacdcde6852f4de68998bd20ce1dac85b22
+  version: 913ee058e387ac83a67e2d9f13acecdcd5769fc6
 - name: github.com/go-openapi/swag
   version: f3f9494671f93fcff853e3c6e9e948b3eb71e590
 - name: github.com/go-openapi/validate
-  version: dc8a684882cf70c9a529887104340f44e0e138e5
+  version: 9a6e517cddf1ddd47449be5d06a6a786e51d9986
 - name: github.com/go-stack/stack
   version: 817915b46b97fd7bb80e8ab6b69f01a53ac3eebf
 - name: github.com/gogo/protobuf
-  version: c0656edd0d9eab7c66d1eb0c568f9039345796f7
+  version: 1adfc126b41513cc696b209667c8656ea7aac67c
   subpackages:
+  - gogoproto
   - proto
+  - protoc-gen-gogo/descriptor
   - sortkeys
 - name: github.com/golang/glog
   version: 44145f04b68cf362d9c4df2182967c2275eaefed
@@ -131,7 +140,7 @@ imports:
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: 1643683e1b54a9e88ad26d98f81400c8c9d9f4f9
+  version: b4deda0973fb4c70b50d226b1af49f3da59f5265
   subpackages:
   - proto
   - ptypes
@@ -153,7 +162,7 @@ imports:
   subpackages:
   - diskcache
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
-  version: ce0256b0cfa9b64c16caf5b91dec256ad649b7d1
+  version: c225b8c3b01faf2899099b768856a9e916e5087b
 - name: github.com/hashicorp/hcl
   version: 42e33e2d55a0ff1d6263f738896ea8c13571a8d0
   subpackages:
@@ -193,6 +202,11 @@ imports:
   version: 5b9ff866471762aa2ab2dced63c9fb6f53921342
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
+- name: github.com/kubernetes-incubator/kube-arbitrator
+  version: 7a535b3895ddc25754767c0c36a14c2e977da810
+  repo: git@github.com:scostache/kube-arbitrator.git
+  subpackages:
+  - pkg/apis/v1alpha1
 - name: github.com/magiconair/properties
   version: 8d7837e64d3c1ee4e54a880c5a920ab4316fc90a
 - name: github.com/mailru/easyjson
@@ -243,17 +257,15 @@ imports:
   subpackages:
   - go
 - name: github.com/prometheus/common
-  version: 49fee292b27bfff7f354ee0f64e1bc4850462edf
+  version: e3fb1a1acd7605367a2b378bc2e2f893c05174b7
   subpackages:
   - expfmt
   - internal/bitbucket.org/ww/goautoneg
   - model
 - name: github.com/prometheus/procfs
-  version: a1dba9ce8baed984a2495b658c82687f8157b98f
+  version: a6e9df898b1336106c743392c48ee0b71f5c4efa
   subpackages:
   - xfs
-- name: github.com/grpc-ecosystem/go-grpc-prometheus
-  version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/PuerkitoBio/purell
   version: 8a290539e2e8629dbc4e6bad948158f790ec31f4
 - name: github.com/PuerkitoBio/urlesc
@@ -270,6 +282,8 @@ imports:
   version: acbeb36b902d72a7a4c18e8f3241075e7ab763e4
 - name: github.com/spf13/cobra
   version: c6c44e6fdcc30161c7f4480754da7230d01c06e3
+  subpackages:
+  - doc
 - name: github.com/spf13/jwalterweatherman
   version: 12bd96e66386c1960ab0f74ced1362f66f552f7b
 - name: github.com/spf13/pflag
@@ -283,16 +297,12 @@ imports:
 - name: github.com/tylerb/graceful
   version: 4654dfbb6ad53cb5e27f37d99b02e16c1872fbbb
 - name: github.com/urfave/cli
-  version: cfb38830724cc34fedffe9a2a29fb54fa9169cd1
+  version: 0bdeddeeb0f650497d603c4ad7b20cfe685682f6
 - name: github.com/ventu-io/go-shortid
   version: 6c56cef5189ca1b3d5ef01dc07f4d611dfc0bb33
 - name: golang.org/x/crypto
-  version: 81e90905daefcd6fd217b62423c0908922eadb30
+  version: d6449816ce06963d9d136eee5a56fca5b0616e7e
   subpackages:
-  - curve25519
-  - ed25519
-  - ed25519/internal/edwards25519
-  - ssh
   - ssh/terminal
 - name: golang.org/x/net
   version: 1c05540f6879653db88113bc4a2b70aec4bd491f
@@ -325,16 +335,25 @@ imports:
   - unicode/bidi
   - unicode/norm
   - width
+- name: google.golang.org/appengine
+  version: b1f26356af11148e710935ed1ac8a7f5702c7612
 - name: google.golang.org/genproto
   version: 11c7f9e547da6db876260ce49ea7536985904c9b
   subpackages:
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: 445b7284b13dacfc46e84a6d4ac38e2693d776ff
+  version: 41344da2231b913fa3d983840a57a6b1b7b631a1
   subpackages:
+  - balancer
+  - balancer/base
+  - balancer/roundrobin
+  - channelz
   - codes
+  - connectivity
   - credentials
-  - grpclb/grpc_lb_v1
+  - encoding
+  - encoding/proto
+  - grpclb/grpc_lb_v1/messages
   - grpclog
   - health
   - health/grpc_health_v1
@@ -343,6 +362,9 @@ imports:
   - metadata
   - naming
   - peer
+  - resolver
+  - resolver/dns
+  - resolver/passthrough
   - stats
   - status
   - tap

@@ -1,24 +1,25 @@
 package: github.com/IBM/FfDL
 import:
 - package: github.com/sirupsen/logrus
-  version: ~1.0.2
+  version: v1.0.5
 - package: github.com/alecthomas/units
 - package: github.com/cenkalti/backoff
   version: ~1.0.0
 - package: github.com/ventu-io/go-shortid
   version: ~1.0.0
-- package: github.com/golang/protobuf
-  subpackages:
-  - proto
 - package: k8s.io/api
+- package: k8s.io/apimachinery
+- package: golang.org/x/net
+- package: google.golang.org/appengine
 - package: k8s.io/client-go
   version: v6.0.0
 - package: github.com/spf13/viper
+- package: github.com/spf13/cobra/doc
 - package: golang.org/x/net
   subpackages:
   - context
 - package: github.com/aws/aws-sdk-go
-  version: ~1.10.9
+  version: v1.14.9
   subpackages:
   - aws
   - aws/awserr
@@ -28,7 +29,7 @@ import:
   - service/s3/s3manager
 - package: gopkg.in/olivere/elastic.v5
 - package: google.golang.org/grpc
-  version: ~1.4.2
+  version: v1.12.0
   subpackages:
   - credentials
   - grpclog
@@ -36,7 +37,7 @@ import:
   - health/grpc_health_v1
   - metadata
 - package: github.com/emicklei/go-restful
-  version: v1.2
+  version: v2.8.0
   subpackages:
   - swagger
 # TODO remove
@@ -46,13 +47,13 @@ import:
   - bluemix/trace
   - plugin
 - package: github.com/urfave/cli
-  version: ^1.19.1
+  version: v1.19.1
 - package: github.com/coreos/etcd
-  version: v3.2.1
+  version: v3.3.3
   subpackages:
   - clientv3
 - package: github.com/go-kit/kit
-  version: v0.5.0
+  version: v0.7.0
   subpackages:
   - metrics
 - package: github.com/prometheus/client_golang
@@ -60,7 +61,7 @@ import:
   subpackages:
   - prometheus
 - package: github.com/grpc-ecosystem/go-grpc-prometheus
-  version: ^1.1.0
+  version: v1.2.0
 - package: github.com/sony/gobreaker
 - package: golang.org/x/crypto
   version: d6449816ce06963d9d136eee5a56fca5b0616e7e
@@ -68,6 +69,25 @@ import:
   - ssh/terminal
 - package: github.com/go-logfmt/logfmt
   version: v0.3.0
+- package: github.com/golang/protobuf
+  version: v1.1.0
+- package: github.com/gogo/protobuf
+  version: v1.0.0
+- package: github.com/kubernetes-incubator/kube-arbitrator
+  repo: git@github.com:scostache/kube-arbitrator.git
+  version: PR1_XQueueJob_controller_ML
+- package: github.com/go-openapi/spec
+  version: v0.15.0
+- package: github.com/go-openapi/errors
+  version: v0.15.0
+- package: github.com/go-openapi/validate
+  version: v0.15.0
+- package: github.com/go-openapi/strfmt
+  version: v0.15.0
+- package: github.com/go-openapi/analysis
+  version: v0.15.0
+- package: github.com/go-openapi/runtime
+  version: v0.15.0
 testImport:
 - package: github.com/stretchr/testify
 - package: github.com/golang/mock

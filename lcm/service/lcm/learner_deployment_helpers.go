@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 package lcm
 
 import (
@@ -22,13 +21,15 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/sirupsen/logrus"
 	"github.com/IBM/FfDL/lcm/service/lcm/helper"
 	"github.com/IBM/FfDL/lcm/service/lcm/learner"
+	"github.com/sirupsen/logrus"
 
 	"github.com/IBM/FfDL/commons/config"
 	"github.com/IBM/FfDL/commons/logger"
 	"github.com/IBM/FfDL/commons/service"
+	arbv1 "github.com/kubernetes-incubator/kube-arbitrator/pkg/apis/v1alpha1"
+	"github.com/kubernetes-incubator/kube-arbitrator/pkg/client/clientset"
 
 	"golang.org/x/net/context"
 
@@ -55,6 +56,7 @@ type Training interface {
 type training struct {
 	ctx        context.Context
 	k8sClient  kubernetes.Interface
+	karClient  *clientset.Clientset
 	req        *service.JobDeploymentRequest
 	trainingID string
 	learner    learnerDefinition
@@ -71,11 +73,20 @@ type splitTrainingBOM struct {
 	numLearners          int
 }
 
+type xqueuejobTrainingBOM struct {
+	secrets              []*v1core.Secret
+	service              *v1core.Service
+	sharedVolumeClaimBOM *v1core.PersistentVolumeClaim
+	learnerBOM           *arbv1.XQueueJob
+	helperBOM            *arbv1.XQueueJob
+	numLearners          int
+}
+
 type nonSplitTrainingBOM struct {
-	secrets       []*v1core.Secret
-	service       *v1core.Service
-	learnerBOM    *v1beta1.StatefulSet
-	numLearners   int
+	secrets     []*v1core.Secret
+	service     *v1core.Service
+	learnerBOM  *v1beta1.StatefulSet
+	numLearners int
 }
 
 type splitTraining struct {
@@ -86,14 +97,18 @@ type nonSplitTraining struct {
 	*training
 }
 
+type xqueuejobTraining struct {
+	*training
+}
+
 type learnerDefinition struct {
-	secrets                                                                             []*v1core.Secret
-	volumes                                                                             []v1core.Volume
-	volumeMounts                                                                        []v1core.VolumeMount
-	envVars                                                                             []v1core.EnvVar
-	mountTrainingDataStoreInLearner, mountResultsStoreInLearner	 						bool
-	numberOfLearners                                                                    int
-	name                                                                                string
+	secrets                                                     []*v1core.Secret
+	volumes                                                     []v1core.Volume
+	volumeMounts                                                []v1core.VolumeMount
+	envVars                                                     []v1core.EnvVar
+	mountTrainingDataStoreInLearner, mountResultsStoreInLearner bool
+	numberOfLearners                                            int
+	name                                                        string
 }
 
 type helperDefinition struct {
@@ -107,7 +122,7 @@ type helperDefinition struct {
 }
 
 //NewTraining ...
-func NewTraining(ctx context.Context, k8sClient kubernetes.Interface, req *service.JobDeploymentRequest, log *logger.LocLoggingEntry) Training {
+func NewTraining(ctx context.Context, k8sClient kubernetes.Interface, req *service.JobDeploymentRequest, log *logger.LocLoggingEntry, karClient *clientset.Clientset) Training {
 	const cosMountDriverName = "ibm/ibmc-s3fs"
 	const cosMountType = "mount_cos"
 	learnerName := fmt.Sprintf("learner-%s", req.Name)
@@ -121,7 +136,6 @@ func NewTraining(ctx context.Context, k8sClient kubernetes.Interface, req *servi
 	resultStoreStype := req.EnvVars["RESULT_STORE_TYPE"]
 	mountTrainingDataStoreInLearner := !(dataStoreType == learner.DataStoreTypeS3)
 	mountResultsStoreInLearner := !(resultStoreStype == learner.DataStoreTypeS3)
-
 
 	logr := log.WithFields(logrus.Fields{
 		"learner_name": learnerName,
@@ -161,10 +175,10 @@ func NewTraining(ctx context.Context, k8sClient kubernetes.Interface, req *servi
 	if helperVolumes.SharedNonSplitLearnerHelperVolume != nil {
 		//this should not be the default case, we should be running in split mode by default
 		logr.Warnf("starting deploying learner infra for non split learning, this is not expected")
-		return nonSplitTraining{&training{ctx, k8sClient, req, req.TrainingId, learnerDefn, helperDefn, logr}}
+		return nonSplitTraining{&training{ctx, k8sClient, karClient, req, req.TrainingId, learnerDefn, helperDefn, logr}}
 	}
 	logr.Infof("starting deploying learner infra for split learning")
-	return splitTraining{&training{ctx, k8sClient, req, req.TrainingId, learnerDefn, helperDefn, logr}}
+	return xqueuejobTraining{&training{ctx, k8sClient, karClient, req, req.TrainingId, learnerDefn, helperDefn, logr}}
 }
 
 ///-------
@@ -216,17 +230,17 @@ func volumesForLearner(req *service.JobDeploymentRequest, learnerEnvVars []v1cor
 
 			volumesStruct.TrainingData = &learner.COSVolume{
 				VolumeType: dataStoreType,
-				ID: "cosinputmount-" + req.Name,
-				Region: region,
-				Bucket: req.EnvVars["DATA_STORE_OBJECTID"],
-				Endpoint: req.EnvVars["DATA_STORE_AUTHURL"],
-				SecretRef: "cossecretdata-" + req.Name,
-				MountSpec: learner.VolumeMountSpec {
+				ID:         "cosinputmount-" + req.Name,
+				Region:     region,
+				Bucket:     req.EnvVars["DATA_STORE_OBJECTID"],
+				Endpoint:   req.EnvVars["DATA_STORE_AUTHURL"],
+				SecretRef:  "cossecretdata-" + req.Name,
+				MountSpec: learner.VolumeMountSpec{
 					MountPath: getValue(learnerEnvVars, "DATA_DIR"),
-					SubPath: "",
+					SubPath:   "",
 				},
 				CacheSize: strconv.Itoa(cacheSize),
-				DiskFree: strconv.Itoa(diskFree),
+				DiskFree:  strconv.Itoa(diskFree),
 			}
 		} else if dataStoreType == learner.DataStoreHostMountVolume {
 			hostPath := req.EnvVars["DATA_STORE_PATH"]
@@ -237,13 +251,13 @@ func volumesForLearner(req *service.JobDeploymentRequest, learnerEnvVars []v1cor
 			fmt.Printf("(data) hostPath=%s\nmountPath=%s\nsubPath=%s\n", hostPath, mountPath, subPath)
 			volumesStruct.TrainingData = &learner.COSVolume{
 				VolumeType: dataStoreType,
-				ID: "inputmount-" + req.Name,
-				HostPath: hostPath,
+				ID:         "inputmount-" + req.Name,
+				HostPath:   hostPath,
 
-				MountSpec: learner.VolumeMountSpec {
-					Name: "inputmount-" + req.Name,
+				MountSpec: learner.VolumeMountSpec{
+					Name:      "inputmount-" + req.Name,
 					MountPath: mountPath,
-					SubPath: subPath,
+					SubPath:   subPath,
 				},
 			}
 			logr.Debugf("TrainingData volume request: %v+", volumesStruct.TrainingData)
@@ -262,11 +276,11 @@ func volumesForLearner(req *service.JobDeploymentRequest, learnerEnvVars []v1cor
 			_, resultBucketName := path.Split(resultBucketDir)
 			volumesStruct.ResultsDir = &learner.COSVolume{
 				VolumeType: resultStoreType,
-				ID:        "cosoutputmount-" + req.Name,
-				Region:    region,
-				Bucket:    resultBucketName,
-				Endpoint:  req.EnvVars["RESULT_STORE_AUTHURL"],
-				SecretRef: "cossecretresults-" + req.Name,
+				ID:         "cosoutputmount-" + req.Name,
+				Region:     region,
+				Bucket:     resultBucketName,
+				Endpoint:   req.EnvVars["RESULT_STORE_AUTHURL"],
+				SecretRef:  "cossecretresults-" + req.Name,
 				MountSpec: learner.VolumeMountSpec{
 					MountPath: resultBucketDir,
 					SubPath:   "",
@@ -284,13 +298,13 @@ func volumesForLearner(req *service.JobDeploymentRequest, learnerEnvVars []v1cor
 			fmt.Printf("(result) hostPath=%s\nmountPath=%s\nsubPath=%s\n", hostPath, mountPath, subPath)
 			volumesStruct.ResultsDir = &learner.COSVolume{
 				VolumeType: resultStoreType,
-				ID: "outputmount-" + req.Name,
-				HostPath: hostPath,
+				ID:         "outputmount-" + req.Name,
+				HostPath:   hostPath,
 
-				MountSpec: learner.VolumeMountSpec {
-					Name: "outputmount-" + req.Name,
+				MountSpec: learner.VolumeMountSpec{
+					Name:      "outputmount-" + req.Name,
 					MountPath: mountPath,
-					SubPath: subPath,
+					SubPath:   subPath,
 				},
 			}
 			logr.Debugf("ResultsDir volume request: %v+", volumesStruct.ResultsDir)

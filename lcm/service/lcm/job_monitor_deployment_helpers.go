@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-
 package lcm
 
 import (
 	"strconv"
+
+	json2 "encoding/json"
 
 	"github.com/IBM/FfDL/commons/config"
 	"github.com/IBM/FfDL/lcm/lcmconfig"
@@ -26,11 +27,14 @@ import (
 	"github.com/IBM/FfDL/commons/logger"
 	"github.com/IBM/FfDL/commons/service"
 
+	//"github.com/kubernetes-incubator/kube-arbitrator/pkg/client/clientset"
+	arbv1 "github.com/kubernetes-incubator/kube-arbitrator/pkg/apis/v1alpha1"
 	"github.com/spf13/viper"
-	"k8s.io/api/apps/v1beta1"
+	v1beta1 "k8s.io/api/apps/v1beta1"
 	v1core "k8s.io/api/core/v1"
 	v1resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -221,6 +225,169 @@ func defineJobMonitorDeployment(req *service.JobDeploymentRequest, envVars []v1c
 			},
 		},
 	}
+
+	return deploySpec
+}
+
+func defineJobMonitorQJDeployment(req *service.JobDeploymentRequest, envVars []v1core.EnvVar, jmLabels map[string]string, logr *logger.LocLoggingEntry) *arbv1.XQueueJob {
+
+	jmTag := viper.GetString(config.DLaaSImageTagKey)
+
+	dockerRegistry := ""
+
+	//Decide where to get job monitor image from by looking at DLAAS_ENV. That is pointed to by config.EnvKey
+	//registry.ng.bluemix.net/* is not accessible from minikube on laptops
+	if viper.GetString(config.LCMDeploymentKey) == config.HybridEnv {
+		dockerRegistry = viper.GetString(config.IBMDockerRegistryKey)
+	} else {
+		dockerRegistry = viper.GetString(config.LearnerRegistryKey)
+	}
+
+	jmImage := jobmonitorImageNameExtended(dockerRegistry, jmTag)
+	imagePullSecret := viper.GetString(config.LearnerImagePullSecretKey)
+	logr.Debugf("jmImage: %s, imagePullSecret: %s, imagePullPolicy: %s",
+		jmImage, imagePullSecret, lcmconfig.GetImagePullPolicy())
+
+	cpuCount := v1resource.NewMilliQuantity(int64(float64(0.5)*1000.0), v1resource.DecimalSI)
+	memInBytes := int64(512 * 1024 * 1024)
+	memCount := v1resource.NewQuantity(memInBytes, v1resource.DecimalSI)
+	logr.Debugf("job monitor: cpu %+v, mem %+v", cpuCount, memCount)
+
+	jmName := constructJMName(req.Name)
+
+	queueJobName := "xqueuejob.arbitrator.k8s.io"
+
+	podSpec := v1core.PodSpec{
+		SchedulerName: "bsa-gang-scheduler",
+		Volumes: []v1core.Volume{
+			v1core.Volume{
+				Name: "etcd-ssl-cert",
+				VolumeSource: v1core.VolumeSource{
+					Secret: &v1core.SecretVolumeSource{
+						SecretName: "lcm-secrets",
+						Items: []v1core.KeyToPath{
+							v1core.KeyToPath{
+								Key:  "DLAAS_ETCD_CERT",
+								Path: "etcd/etcd.cert",
+							},
+						},
+					},
+				},
+			},
+		},
+		Containers: []v1core.Container{
+			v1core.Container{
+				Name:  jmName,
+				Image: jmImage,
+				//Command: [],
+				Env: envVars,
+				VolumeMounts: []v1core.VolumeMount{
+					v1core.VolumeMount{
+						Name:      "etcd-ssl-cert",
+						MountPath: "/etc/certs/",
+						ReadOnly:  true,
+					},
+				},
+				Resources: v1core.ResourceRequirements{
+					Requests: v1core.ResourceList{
+						v1core.ResourceCPU:    *cpuCount,
+						v1core.ResourceMemory: *memCount,
+					},
+					Limits: v1core.ResourceList{
+						v1core.ResourceCPU:    *cpuCount,
+						v1core.ResourceMemory: *memCount,
+					},
+				},
+				ImagePullPolicy: lcmconfig.GetImagePullPolicy(),
+			},
+		},
+		RestartPolicy: v1core.RestartPolicyAlways,
+		DNSPolicy:     v1core.DNSClusterFirst,
+		ImagePullSecrets: []v1core.LocalObjectReference{
+			v1core.LocalObjectReference{
+				Name: imagePullSecret,
+			},
+		},
+	}
+
+	podTemplate := v1core.PodTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				queueJobName: jmName,
+			},
+		},
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1", Kind: "PodTemplate",
+		},
+		Template: v1core.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: jmName,
+				Labels: map[string]string{
+					"app":         jmName,
+					"training_id": req.TrainingId,
+					"service":     "dlaas-jobmonitor",
+					"user_id":     req.UserId,
+				},
+			},
+			Spec: podSpec,
+		},
+	}
+
+	data, err := json2.Marshal(podTemplate)
+	if err != nil {
+		logr.Errorf("Encoding podTemplate failed %+v %+v", podTemplate, err)
+	}
+
+	rawExt := runtime.RawExtension{Raw: json2.RawMessage(data)}
+
+	var replicas, minAvl int32
+
+	replicas = 1
+	minAvl = 1
+
+	aggrResources := arbv1.XQueueJobResourceList{
+		Items: []arbv1.XQueueJobResource{
+			arbv1.XQueueJobResource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      jmName,
+					Namespace: config.GetPodNamespace(),
+					Labels:    map[string]string{queueJobName: jmName},
+				},
+				Replicas:     replicas,
+				MinAvailable: &minAvl,
+				Priority:     float64(50000000),
+				Type:         arbv1.ResourceTypePod,
+				Template:     rawExt,
+			},
+		},
+	}
+
+	deploySpec := &arbv1.XQueueJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      jmName,
+			Namespace: config.GetPodNamespace(),
+			Labels: map[string]string{
+				"app":         jmName,
+				"training_id": req.TrainingId,
+				"service":     "dlaas-jobmonitor",
+				"user_id":     req.UserId,
+			},
+		},
+		Spec: arbv1.XQueueJobSpec{
+			Priority: 50000000,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					queueJobName: jmName,
+				},
+			},
+			SchedSpec: arbv1.SchedulingSpecTemplate{
+				MinAvailable: int(1),
+			},
+			AggrResources: aggrResources,
+		},
+	}
+
+	logr.Debug("defineJobMonitorDeployment() Pull Secret: %v", imagePullSecret)
 
 	return deploySpec
 }

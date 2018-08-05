@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 package lcm
 
 import (
@@ -38,6 +37,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"golang.org/x/net/context"
+
+	"github.com/kubernetes-incubator/kube-arbitrator/pkg/client/clientset"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -66,6 +67,7 @@ type lcmService struct {
 	service.Lifecycle
 	k8sClient  kubernetes.Interface
 	etcdClient coord.Coordinator
+	karClient  *clientset.Clientset
 }
 
 //NewService is a constructor to initialize LCM
@@ -115,9 +117,14 @@ func newService() (*lcmService, error) {
 		return nil, connectivityErr
 	}
 
+	var karClient *clientset.Clientset
+
+	karClient = clientset.NewForConfigOrDie(lcmconfig.GetKubernetesConfig())
+
 	s := &lcmService{
 		k8sClient:  k8sClient,
 		etcdClient: client,
+		karClient:  karClient,
 	}
 
 	s.RegisterService = func() {
@@ -199,7 +206,7 @@ func (s *lcmService) deployDistributedTrainingJob(ctx context.Context, req *serv
 	}
 
 	logr.Infof("now starting to deploy learners for training job")
-	if err := NewTraining(ctx, s.k8sClient, req, logr).Start(); err != nil {
+	if err := NewTraining(ctx, s.k8sClient, req, logr, s.karClient).Start(); err != nil {
 		//Deploying learner helpers has failed. So update status
 		failedToLaunchTrainingsCounter.With(reason, learnerLaunchFailed).Add(1)
 		handleDeploymentFailure(s, req.Name, req.TrainingId, req.UserId, "learner deployment", logr)
