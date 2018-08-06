@@ -86,6 +86,83 @@ func CreatePodSpec(containers []v1core.Container, volumes []v1core.Volume, label
 }
 
 //CreateQJSpecForLearner ...
+func CreateQJStatefulSetSpecForLearner(name, servicename string, replicas int, podTemplateSpec v1core.PodTemplateSpec, trainingId string, userId string) *arbv1.XQueueJob {
+	//var replicaCount = int32(replicas)
+	//revisionHistoryLimit := int32(0) //https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#clean-up-policy
+	queueJobName := "xqueuejob.arbitrator.k8s.io"
+
+	ssSpec := CreateStatefulSetSpecForLearner(name, servicename, replicas, podTemplateSpec)
+
+	data, _ := json2.Marshal(*ssSpec)
+	/*if err != nil {
+		logr.Errorf("Encoding podTemplate failed %+v %+v", podTemplate, err)
+	}*/
+
+	rawExt := runtime.RawExtension{Raw: json2.RawMessage(data)}
+
+	var minAvl int32
+
+	minAvl = 1
+
+	aggrResources := arbv1.XQueueJobResourceList{
+		Items: []arbv1.XQueueJobResource{
+			arbv1.XQueueJobResource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: config.GetPodNamespace(),
+					Labels:    map[string]string{queueJobName: name},
+				},
+				Replicas:     int32(replicas),
+				MinAvailable: &minAvl,
+				Priority:     float64(50000000),
+				Type:         arbv1.ResourceTypeStatefulSet,
+				Template:     rawExt,
+			},
+		},
+	}
+
+	qjSpec := &arbv1.XQueueJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: config.GetPodNamespace(),
+			Labels: map[string]string{
+				"app":     name,
+				"service": servicename,
+			},
+		},
+		Spec: arbv1.XQueueJobSpec{
+			Priority: 50000000,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					queueJobName: name,
+				},
+			},
+			SchedSpec: arbv1.SchedulingSpecTemplate{
+				MinAvailable: int(1),
+			},
+			AggrResources: aggrResources,
+		},
+	}
+
+	return qjSpec
+
+	/*return &v1beta1.StatefulSet{
+
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: podTemplateSpec.Labels,
+		},
+		Spec: v1beta1.StatefulSetSpec{
+			ServiceName:          servicename,
+			Replicas:             &replicaCount,
+			Template:             podTemplateSpec,
+			RevisionHistoryLimit: &revisionHistoryLimit, //we never rollback these
+			//PodManagementPolicy: v1beta1.ParallelPodManagement, //using parallel pod management in stateful sets to ignore the order. not sure if this will affect the helper pod since any pod in learner can come up now
+		},
+	}*/
+}
+
+//CreateQJSpecForLearner ...
 func CreateQJSpecForLearner(name, servicename string, replicas int, podTemplateSpec v1core.PodTemplateSpec, trainingId string, userId string) *arbv1.XQueueJob {
 	//var replicaCount = int32(replicas)
 	//revisionHistoryLimit := int32(0) //https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#clean-up-policy

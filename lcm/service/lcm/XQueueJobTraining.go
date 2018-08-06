@@ -36,7 +36,7 @@ func (t xqueuejobTraining) Start() error {
 	serviceSpec := learner.CreateServiceSpec(t.learner.name, t.req.TrainingId)
 
 	numLearners := int(t.req.GetResources().Learners)
-	qjSpec := t.QJPodSpecForLearner(serviceSpec.Name)
+	qjSpec := t.QJSpecForLearner(serviceSpec.Name)
 
 	return t.CreateFromBOM(&xqueuejobTrainingBOM{
 		t.learner.secrets,
@@ -72,7 +72,7 @@ func (t xqueuejobTraining) deploymentSpecForHelper() *v1beta1.Deployment {
 
 }
 
-func (t xqueuejobTraining) QJPodSpecForLearner(serviceName string) *arbv1.XQueueJob {
+func (t xqueuejobTraining) QJSpecForLearner(serviceName string) *arbv1.XQueueJob {
 
 	logr := t.logr
 	gpus := make(map[string]string)
@@ -91,7 +91,7 @@ func (t xqueuejobTraining) QJPodSpecForLearner(serviceName string) *arbv1.XQueue
 	numLearnersStr := strconv.Itoa(int(t.req.GetResources().Learners))
 	logr.Infof("Added size: %s", numLearnersStr)
 	learnerPodSpec := learner.CreateQJPodSpec([]v1core.Container{learnerContainer}, helperAndLearnerVolumes, map[string]string{"training_id": t.req.TrainingId, "user_id": t.req.UserId, "app": t.req.TrainingId, "size": numLearnersStr}, gpus, t.learner.name)
-	learnerQJSpec := learner.CreateQJSpecForLearner(learnerDefn.name, serviceName, learnerDefn.numberOfLearners, learnerPodSpec, t.req.TrainingId, t.req.UserId)
+	learnerQJSpec := learner.CreateQJStatefulSetSpecForLearner(learnerDefn.name, serviceName, learnerDefn.numberOfLearners, learnerPodSpec, t.req.TrainingId, t.req.UserId)
 
 	return learnerQJSpec
 }
